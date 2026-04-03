@@ -1,65 +1,125 @@
-import Image from "next/image";
+"use client";
+
+import React from "react";
+import { useRouter } from "next/navigation";
+import RedButton from "@/components/RedButton";
+import Feature from "@/components/Feature";
+import CitySlider from "@/components/CitySlider";
 
 export default function Home() {
+  const router = useRouter();
+
+  const scrollTo = (id: string) => {
+    const section = document.getElementById(id);
+    if (section) {
+      section.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <>
+      {/* HERO SECTION */}
+      <div className="w-full bg-black pt-20 pb-4 px-6 sm:px-12 lg:px-20 text-center">
+        <h1 className="text-4xl sm:text-6xl lg:text-8xl font-extrabold leading-tight">
+          <span className="text-white">Crime</span>
+          <span className="text-red-600">Atlas</span>
+        </h1>
+
+        <p className="text-stone-300 text-base sm:text-lg lg:text-xl max-w-2xl mx-auto mt-6">
+          Harness the power of AI to predict, prevent, and analyze criminal
+          activities with real-time insights.
+        </p>
+
+        <div className="mt-10 flex justify-center">
+          <RedButton
+            text="Explore Features"
+            onClick={() => scrollTo("features")}
+          />
+        </div>
+      </div>
+
+      {/* CITY SLIDER */}
+      <CitySlider
+        cities={[
+          "Mumbai",
+          "Delhi",
+          "Bengaluru",
+          "Hyderabad",
+          "Chennai",
+          "Kolkata",
+          "Pune",
+          "Ahmedabad",
+          "Jaipur",
+          "Lucknow",
+        ]}
+      />
+
+      {/* FEATURES */}
+      <section
+        id="features"
+        className="px-6 sm:px-10 lg:px-20 py-24 space-y-24"
+      >
+        {/* DASHBOARD */}
+        <Feature
+          id="dashboard"
+          badge="Real-time analytics"
+          title="Interactive Crime Dashboard"
+          description1="A configurable analytics hub with charts, filters, and drill-downs."
+          description2="Use the dashboard to create custom date ranges and export reports."
+          primaryBtnText="Open Dashboard"
+          secondaryBtnText="View Map"
+          onPrimaryClick={() => router.push("/dashboard")}
+          onSecondaryClick={() => scrollTo("map")}
+          image="/dashboard.png"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {/* MAP */}
+        <Feature
+          id="map"
+          badge="Geospatial Intelligence"
+          title="Interactive Crime Map Visualization"
+          description1="Explore crime distribution across districts using an interactive map."
+          description2="Analyze hotspots and geographical crime risk patterns."
+          primaryBtnText="Open Crime Map"
+          secondaryBtnText="View Prediction"
+          onPrimaryClick={() => router.push("/map")}
+          onSecondaryClick={() => scrollTo("prediction")}
+          image="/map.png"
+          reversed={true}
+        />
+
+        {/* PREDICTION */}
+        <Feature
+          id="prediction"
+          badge="AI-Powered Forecasting"
+          title="Crime Prediction & Risk Analysis"
+          description1="Use machine learning models to forecast crime trends."
+          description2="Generate predictive risk scores and simulate scenarios."
+          primaryBtnText="Run Prediction"
+          secondaryBtnText="Nearby Police Stations"
+          onPrimaryClick={() => router.push("/predict")}
+          onSecondaryClick={() => scrollTo("police")}
+          image="/prediction.png"
+        />
+
+        {/* POLICE */}
+        <Feature
+          id="police"
+          badge="Safety Assistance"
+          title="Nearby Police Station Locator"
+          description1="Quickly find the nearest police stations based on your location."
+          description2="View station details, contact numbers, and directions instantly."
+          primaryBtnText="Find Police Stations"
+          secondaryBtnText="Back to Dashboard"
+          onPrimaryClick={() => router.push("/police")}
+          onSecondaryClick={() => scrollTo("dashboard")}
+          image="/police.png"
+          reversed={true}
+        />
+      </section>
+    </>
   );
 }

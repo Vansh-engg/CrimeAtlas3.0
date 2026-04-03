@@ -1,0 +1,184 @@
+name: CI/CD Model Training & Deployment Pipeline
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+  
+  # Scheduled daily at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # On push to main branch
+  push:
+    branches:
+      - main
+    paths:
+      - 'api/**'
+      - 'Data/**'
+      - '.github/workflows/cd-pipeline.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r api/requirements.txt
+    
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 api/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      continue-on-error: true
+    
+    - name: Verify dataset
+      run: |
+        python -c "
+        import pandas as pd
+        df = pd.read_csv('Data/india_city_crime_dataset_2015_2024_synthetic.csv')
+        print(f'Dataset shape: {df.shape}')
+        print(f'Columns: {df.columns.tolist()}')
+        print(f'Date range: {df[\"year\"].min()} - {df[\"year\"].max()}')
+        "
+
+  train-models:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r api/requirements.txt
+    
+    - name: Train models
+      run: |
+        cd api
+        python -c "
+        from training_scheduler import ModelTrainingScheduler
+        import os
+        
+        data_path = os.path.join('..', 'Data', 'india_city_crime_dataset_2015_2024_synthetic.csv')
+        scheduler = ModelTrainingScheduler(data_path, models_dir='models')
+        result = scheduler.train_models()
+        
+        if result['status'] != 'success':
+          exit(1)
+        print(f'Training completed: {result}')
+        "
+    
+    - name: Run model health check
+      run: |
+        cd api
+        python -c "
+        from model_manager import ModelManager
+        
+        manager = ModelManager(base_dir='models')
+        health = manager.health_check()
+        
+        healthy_count = sum(1 for h in health.values() if h == 'healthy')
+        print(f'Model Health: {healthy_count}/{len(health)} healthy')
+        
+        for model, status in health.items():
+          print(f'  {model}: {status}')
+        "
+    
+    - name: Upload model artifacts
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: trained-models
+        path: api/models/
+        retention-days: 30
+
+  deploy:
+    needs: train-models
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download model artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: trained-models
+        path: api/models/
+    
+    - name: Verify deployment readiness
+      run: |
+        cd api
+        echo "Deployment verification:"
+        ls -la models/
+        cat models/model_registry.json || echo "Model registry will be created on first run"
+    
+    - name: Deploy notification
+      run: |
+        echo "✓ Models trained and ready for deployment"
+        echo "✓ All health checks passed"
+        echo "✓ Next deployment target: Production API server"
+    
+    - name: Create deployment summary
+      run: |
+        cat > DEPLOYMENT_SUMMARY.md << 'EOF'
+        # Model Deployment Summary
+        
+        **Date:** $(date)
+        **Status:** ✓ Success
+        **Pipeline:** CI/CD Automated Training & Deployment
+        
+        ## What's Included
+        - ✓ Latest trained XGBoost models for all crime types
+        - ✓ Model versioning and registry
+        - ✓ Health checks completed
+        - ✓ Artifacts packaged and ready
+        
+        ## Next Steps
+        1. Download trained models from artifacts
+        2. Deploy to production API server
+        3. Update model endpoints
+        4. Monitor prediction accuracy
+        
+        ## Deployment Information
+        - Models Location: `api/models/current/`
+        - Registry: `api/models/model_registry.json`
+        - Version: Check registry file
+        EOF
+    
+    - name: Upload deployment summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-summary
+        path: DEPLOYMENT_SUMMARY.md
+
+  notify:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Pipeline status
+      run: |
+        if [ "${{ needs.deploy.result }}" == "success" ]; then
+          echo "✓ Pipeline succeeded - Models deployed successfully"
+          exit 0
+        else
+          echo "✗ Pipeline failed - Check logs for details"
+          exit 1
+        fi

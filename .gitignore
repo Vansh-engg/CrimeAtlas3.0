@@ -33,9 +33,34 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local editor/mcp config
+.vscode/mcp.json
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+.venv/
+__pycache__/
+
+# AI agents & metadata
+.gemini/
+AGENTS.md
+CLAUDE.md
+
+# Build logs and temporary files
+*.log
+lint_output*.txt
+build.log
+test_*.py
+supabase_setup.md
+CICD_INTEGRATION_GUIDE.md
+CICD_SETUP_COMPLETE.md
+CI_CD_DOCUMENTATION.md
+DEPLOYMENT_GUIDE.md
+IMPLEMENTATION_SUMMARY.md
+TEACHER_PRESENTATION_GUIDE.md
