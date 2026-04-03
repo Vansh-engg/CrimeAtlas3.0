@@ -33,7 +33,8 @@ export async function fetchMapData(): Promise<MapMarker[]> {
 
 export async function fetchPredictData(city?: string): Promise<any> {
   try {
-    const response = await fetch(`http://127.0.0.1:5000/predict`, {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+    const response = await fetch(`${baseUrl}/predict`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ city, year: 2025, month: 1, crime: "all" })

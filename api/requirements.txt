@@ -8,3 +8,4 @@ xgboost
 apscheduler
 python-dotenv
 requests
+gunicorn
