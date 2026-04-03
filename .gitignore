@@ -1,66 +1,42 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.venv/
+__pycache__/
+.pnp
 .pnp.*
 .yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# local editor/mcp config
-.vscode/mcp.json
-
-# vercel
-.vercel
-
-# typescript
+# build output
+.next/
+out/
+build/
+dist/
 *.tsbuildinfo
 next-env.d.ts
 
-# python
-.venv/
-__pycache__/
+# env files
+.env*
 
-# AI agents & metadata
+# system & editor
+.DS_Store
+*.pem
+.vscode/
+.idea/
+
+# AI agent metadata
 .gemini/
 AGENTS.md
 CLAUDE.md
 
-# Build logs and temporary files
+# logs and reports
 *.log
 lint_output*.txt
-build.log
 test_*.py
 supabase_setup.md
-CICD_INTEGRATION_GUIDE.md
-CICD_SETUP_COMPLETE.md
-CI_CD_DOCUMENTATION.md
-DEPLOYMENT_GUIDE.md
-IMPLEMENTATION_SUMMARY.md
-TEACHER_PRESENTATION_GUIDE.md
+CICD_*.md
+CI_CD_*.md
+DEPLOYMENT_*.md
+IMPLEMENTATION_*.md
+TEACHER_*.md

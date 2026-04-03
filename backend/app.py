@@ -29,7 +29,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Load Dataset
 # --------------------------------------------------
 # Corrected path to parent directory's Data folder
-data_path = os.path.join(BASE_DIR, "..", "Data", "india_city_crime_dataset_2015_2024_synthetic.csv")
+data_path = os.path.join(BASE_DIR, "Data", "india_city_crime_dataset_2015_2024_synthetic.csv")
 
 if not os.path.exists(data_path):
     raise FileNotFoundError(f"Dataset not found at {data_path}")
