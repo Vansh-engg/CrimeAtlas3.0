@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { CheckCircle2, Flag } from "lucide-react";
@@ -37,14 +37,6 @@ function ZoomHandler({ center }: { center: [number, number] }) {
 }
 
 export default function MapComponent({ markers, center, onRateIncident, userRatings = {} }: MapComponentProps) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) return <div className="w-full h-full bg-black animate-pulse" />;
-
   const initialCenter: [number, number] = [20.5937, 78.9629]; // India center
 
   return (

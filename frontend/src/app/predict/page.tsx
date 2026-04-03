@@ -12,6 +12,17 @@ type PredictionResponse = {
   predictions?: Record<string, number>;
 };
 
+type InternalPredictFallback = {
+  avgCount: number;
+  likelyCrimes: string[];
+};
+
+function isInternalPredictFallback(value: unknown): value is InternalPredictFallback {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.avgCount === "number" && Array.isArray(record.likelyCrimes);
+}
+
 export default function PredictionPage() {
   const [year, setYear] = useState<number>(2025);
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
@@ -85,20 +96,24 @@ export default function PredictionPage() {
         // Fallback to Server Action if local flask is down
         const { fetchPredictData } = await import('@/app/actions');
         const data = await fetchPredictData(city);
+        const fallbackAvg = isInternalPredictFallback(data) ? data.avgCount : 450;
+        const fallbackLikelyCrimes = isInternalPredictFallback(data)
+          ? data.likelyCrimes
+          : ["Theft", "Robbery", "Cyber Crime"];
         setResult({
             city,
             year,
             month,
             crime: crimeType !== 'all' ? crimeType : 'Total',
-            prediction: data.avgCount,
-            predictions: crimeType === 'all' ? Object.fromEntries(data.likelyCrimes.map((c: string) => [c, Math.floor(data.avgCount / 3)])) : undefined
+            prediction: fallbackAvg,
+            predictions: crimeType === 'all' ? Object.fromEntries(fallbackLikelyCrimes.map((c) => [c, Math.floor(fallbackAvg / 3)])) : undefined
         });
         return;
       }
 
       const data = await response.json();
       setResult(data);
-    } catch (err: any) {
+     } catch {
        // Silent fallback for demo
        const mockRes = { city, year, month, prediction: 450, crime: "Theft" };
        setResult(mockRes);

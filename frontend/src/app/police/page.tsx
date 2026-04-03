@@ -2,13 +2,25 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import L from "leaflet";
+import type { DivIcon, Icon } from "leaflet";
 
 interface PoliceStation {
   name: string;
   lat: number;
   lon: number;
 }
+
+type OverpassElement = {
+  lat: number;
+  lon: number;
+  tags?: {
+    name?: string;
+  };
+};
+
+type OverpassResponse = {
+  elements: OverpassElement[];
+};
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -27,36 +39,58 @@ const Popup = dynamic(
   { ssr: false }
 );
 
-// Fix Leaflet default icon issue
-if (typeof window !== "undefined") {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl:
-      "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-    iconUrl:
-      "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    shadowUrl:
-      "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  });
-}
-
-const userLocationIcon = new L.DivIcon({
-  className: "custom-user-marker",
-  html: `
-  <div class="relative flex items-center justify-center">
-    <span class="absolute inline-flex h-10 w-10 rounded-full bg-red-500 opacity-75 animate-ping"></span>
-    <span class="relative inline-flex rounded-full h-4 w-4 bg-red-600 border-2 border-white"></span>
-  </div>
-  `,
-  iconSize: [30, 30],
-});
-
 export default function PoliceLocator() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [stations, setStations] = useState<PoliceStation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [userLocationIcon, setUserLocationIcon] = useState<Icon | DivIcon | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
+    async function initLeaflet() {
+      const leaflet = await import("leaflet");
+
+      const defaultProto = leaflet.Icon.Default.prototype as unknown as { _getIconUrl?: unknown };
+      delete defaultProto._getIconUrl;
+      leaflet.Icon.Default.mergeOptions({
+        iconRetinaUrl:
+          "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+        iconUrl:
+          "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+        shadowUrl:
+          "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      });
+
+      const icon = new leaflet.DivIcon({
+        className: "custom-user-marker",
+        html: `
+        <div class="relative flex items-center justify-center">
+          <span class="absolute inline-flex h-10 w-10 rounded-full bg-red-500 opacity-75 animate-ping"></span>
+          <span class="relative inline-flex rounded-full h-4 w-4 bg-red-600 border-2 border-white"></span>
+        </div>
+        `,
+        iconSize: [30, 30],
+      });
+
+      if (mounted) {
+        setUserLocationIcon(icon);
+      }
+    }
+
+    initLeaflet();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setIsLoading(false);
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const lat = position.coords.latitude;
@@ -78,8 +112,8 @@ export default function PoliceLocator() {
           body: query,
         })
           .then((res) => res.json())
-          .then((data) => {
-            const policeStations = data.elements.map((el: any) => ({
+          .then((data: OverpassResponse) => {
+            const policeStations = data.elements.map((el) => ({
               name: el.tags?.name || "Police Station",
               lat: el.lat,
               lon: el.lon,
@@ -139,7 +173,7 @@ export default function PoliceLocator() {
             />
 
             {/* USER LOCATION */}
-            <Marker position={userLocation} icon={userLocationIcon}>
+            <Marker position={userLocation} {...(userLocationIcon ? { icon: userLocationIcon } : {})}>
               <Popup>
                 <div className="text-center font-semibold text-red-600">You are here</div>
               </Popup>
@@ -167,7 +201,7 @@ export default function PoliceLocator() {
         </div>
 
         {/* STATION LIST */}
-        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+        <div className="space-y-4 max-h-150 overflow-y-auto pr-2">
           {stations.length > 0 ? (
             stations.map((station, index) => (
               <div

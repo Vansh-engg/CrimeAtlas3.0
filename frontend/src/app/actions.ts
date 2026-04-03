@@ -10,7 +10,6 @@ import {
   getAllCities,
   getAvailableYears,
   MapMarker,
-  PredictData,
   CityTrendData,
   PoliceStation
 } from '@/lib/data';
@@ -31,7 +30,16 @@ export async function fetchMapData(): Promise<MapMarker[]> {
   return getMapData();
 }
 
-export async function fetchPredictData(city?: string): Promise<any> {
+type PredictApiResponse = {
+  city: string;
+  year: number;
+  month: number;
+  crime?: string;
+  prediction?: number;
+  predictions?: Record<string, number>;
+};
+
+export async function fetchPredictData(city?: string): Promise<PredictApiResponse | ReturnType<typeof getPredictData>> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
     const response = await fetch(`${baseUrl}/predict`, {
@@ -40,13 +48,13 @@ export async function fetchPredictData(city?: string): Promise<any> {
       body: JSON.stringify({ city, year: 2025, month: 1, crime: "all" })
     });
     if (response.ok) return await response.json();
-  } catch (e) {
+  } catch {
     console.warn("Flask Prediction API is not reachable, using internal fallback.");
   }
   return getPredictData(city);
 }
 
-export async function fetchCityData(city: string, year?: number, crimeType?: string): Promise<any> {
+export async function fetchCityData(city: string, year?: number, crimeType?: string): Promise<CityTrendData[]> {
   return getCityTrendData(city, year, crimeType);
 }
 

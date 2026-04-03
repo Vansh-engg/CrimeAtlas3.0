@@ -63,10 +63,10 @@ export default function SOSButton() {
 
       setTimeout(() => setStatus("idle"), 5000);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setStatus("error");
-      setErrorMessage(err.message || "Failed to fetch geolocation.");
+      setErrorMessage(err instanceof Error ? err.message : "Failed to fetch geolocation.");
       setTimeout(() => setStatus("idle"), 5000);
     }
   };

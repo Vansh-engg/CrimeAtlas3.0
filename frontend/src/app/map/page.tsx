@@ -1,11 +1,37 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Map as MapIcon, Filter, Flame, Search, ShieldAlert, Navigation, Plus } from "lucide-react";
+import { Filter, Flame, Search, ShieldAlert, Navigation, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { MapMarker } from "@/lib/data";
-import IncidentReportingModal from "@/components/IncidentReportingModal";
 import { supabase } from "@/lib/supabase";
+
+type DbResult = {
+  data: unknown;
+  error: unknown;
+};
+
+type DbTableClient = {
+  select: (columns: string) => {
+    eq: (column: string, value: boolean) => Promise<DbResult>;
+    limit: (count: number) => Promise<DbResult>;
+  };
+  upsert: (values: Record<string, unknown>) => Promise<unknown>;
+  delete: () => {
+    eq: (column: string, value: string | number) => Promise<unknown>;
+  };
+  insert: (values: Record<string, unknown>[]) => Promise<{ error: unknown }>;
+  update: (values: Record<string, unknown>) => {
+    eq: (column: string, value: string | number) => Promise<unknown>;
+  };
+};
+
+const fromTable = (table: string) => supabase.from(table) as unknown as DbTableClient;
+
+const IncidentReportingModal = dynamic(() => import("@/components/IncidentReportingModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
 const MapComponent = dynamic(() => import("@/components/MapComponent"), { 
   ssr: false,
@@ -26,7 +52,6 @@ const crimeToTips: Record<string, string[]> = {
 
 export default function MapPage() {
   const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [historyMarkers, setHistoryMarkers] = useState<MapMarker[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [center, setCenter] = useState<[number, number] | null>(null);
   const [cityName, setCityName] = useState("");
@@ -40,18 +65,19 @@ export default function MapPage() {
       const apiData = await fetchMapData();
       
       // LOAD FROM SUPABASE
-      const { data: cloudLive, error: liveError } = await supabase
-        .from('live_incidents')
+      const { data: cloudLiveData, error: liveError } = await fromTable('live_incidents')
         .select('*')
         .eq('is_live', true);
 
-      const { data: cloudHistory, error: historyError } = await supabase
-        .from('incident_history')
+      const { data: cloudHistoryData } = await fromTable('incident_history')
         .select('*')
         .limit(100);
 
+      const cloudLive = cloudLiveData as MapMarker[] | null;
+      const cloudHistory = cloudHistoryData as MapMarker[] | null;
+
       let liveIncidents: MapMarker[] = cloudLive || [];
-      let historicalIncidents: MapMarker[] = cloudHistory || [];
+      const historicalIncidents: MapMarker[] = cloudHistory || [];
 
       // FALLBACK TO LOCAL IF SUPABASE FAILS OR NOT SETUP
       if (liveError || !cloudLive) {
@@ -69,14 +95,11 @@ export default function MapPage() {
       if (newlyExpired.length > 0) {
          // Migration logic (Archival)
          for (const incident of newlyExpired) {
-            await supabase.from('incident_history').upsert({ ...incident, archived_at: new Date().toISOString() });
-            await supabase.from('live_incidents').delete().eq('id', incident.id);
+          await fromTable('incident_history').upsert({ ...incident, archived_at: new Date().toISOString() });
+          await fromTable('live_incidents').delete().eq('id', incident.id);
          }
          localStorage.setItem("incident_history", JSON.stringify([...newlyExpired, ...historicalIncidents]));
          localStorage.setItem("live_incidents", JSON.stringify(stillLive));
-         setHistoryMarkers([...newlyExpired, ...historicalIncidents]);
-      } else {
-         setHistoryMarkers(historicalIncidents);
       }
 
       setMarkers([...stillLive, ...apiData]);
@@ -86,8 +109,7 @@ export default function MapPage() {
 
   const persistLiveIncident = async (incident: MapMarker) => {
      // Cloud Insert
-     const { error } = await supabase
-        .from('live_incidents')
+        await fromTable('live_incidents')
         .insert([{
            lat: incident.lat,
            lng: incident.lng,
@@ -139,8 +161,7 @@ export default function MapPage() {
 
     // CLOUD UPDATE (Supabase)
     const updateCloudRating = async (tHits: number, fHits: number) => {
-       await supabase
-         .from('live_incidents')
+       await fromTable('live_incidents')
          .update({ true_hits: tHits, false_hits: fHits })
          .eq('id', id);
     };
@@ -212,7 +233,7 @@ export default function MapPage() {
   }, [currentRiskMarkers]);
 
   const safetyTips = useMemo(() => {
-    let tips: string[] = [];
+    const tips: string[] = [];
     topCrimes.forEach(type => {
        const mapped = crimeToTips[type];
        if (mapped) tips.push(...mapped);
@@ -228,7 +249,7 @@ export default function MapPage() {
     <div className="fixed inset-0 pt-20 w-full h-full overflow-hidden animate-in fade-in duration-700 bg-black">
       
       {/* HUD OVERLAY - SEARCH */}
-      <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-lg px-6">
+      <div className="absolute top-24 left-1/2 -translate-x-1/2 z-1000 w-full max-w-lg px-6">
           <div className="relative group flex gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/30 group-focus-within:text-red-500 transition-colors" />
@@ -268,7 +289,7 @@ export default function MapPage() {
 
       {/* INTELLIGENCE PANEL */}
       {cityName && (
-        <div className="absolute top-48 left-8 z-[1000] w-96 max-h-[calc(100vh-14rem)] overflow-y-auto no-scrollbar hidden lg:block">
+        <div className="absolute top-48 left-8 z-1000 w-96 max-h-[calc(100vh-14rem)] overflow-y-auto no-scrollbar hidden lg:block">
             <div className="bg-black/60 backdrop-blur-3xl p-8 border border-white/10 rounded-[2.5rem] shadow-2xl space-y-6 animate-in slide-in-from-left-4 duration-500">
                <div>
                   <h2 className="text-3xl font-black tracking-tighter text-white">{cityName}</h2>
@@ -329,7 +350,7 @@ export default function MapPage() {
         />
         
         {/* HUD - ACTION CONTROLS */}
-        <div className="absolute top-24 right-8 z-[1000] flex flex-col gap-3">
+        <div className="absolute top-24 right-8 z-1000 flex flex-col gap-3">
            <button 
              onClick={() => setIsReportingOpen(true)}
              className="p-4 bg-red-600/90 backdrop-blur-3xl border border-red-500/50 rounded-2xl hover:bg-red-500 transition-all text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] group flex items-center justify-center relative hover:scale-105 active:scale-95"
@@ -347,7 +368,7 @@ export default function MapPage() {
         </div>
 
         {/* HUD - LEGEND */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[1000] px-4 w-full md:w-auto">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-1000 px-4 w-full md:w-auto">
           <div className="bg-black/60 backdrop-blur-3xl px-8 py-3 rounded-full border border-white/10 flex items-center gap-8 text-[11px] text-white/40 font-bold uppercase tracking-widest shadow-2xl overflow-x-auto no-scrollbar">
             <div className="flex items-center gap-3">
               <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_12px_#ef4444]" />

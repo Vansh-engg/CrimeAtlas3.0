@@ -53,16 +53,56 @@ export interface PredictData {
   pred: number;
 }
 
+export interface ChartData {
+  month: string;
+  crimes: number;
+}
+
+export interface CategoryData {
+  name: string;
+  value: number;
+}
+
 let cachedData: CrimeRecord[] | null = null;
+let loadError: string | null = null;
 
 export function getCrimeData(): CrimeRecord[] {
   if (cachedData) return cachedData;
   
-  const filePath = path.join(process.cwd(), 'Data', 'india_city_crime_dataset_2015_2024_synthetic.csv');
-  const fileContent = fs.readFileSync(filePath, 'utf8');
-  const parsed = Papa.parse(fileContent, { header: true, dynamicTyping: true, skipEmptyLines: true });
-  cachedData = parsed.data as CrimeRecord[];
-  return cachedData;
+  try {
+    const filePath = path.join(process.cwd(), 'Data', 'india_city_crime_dataset_2015_2024_synthetic.csv');
+    
+    if (!fs.existsSync(filePath)) {
+      loadError = `CSV file not found at: ${filePath}`;
+      console.error(loadError);
+      return [];
+    }
+    
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    
+    if (!fileContent || fileContent.length === 0) {
+      loadError = "CSV file is empty";
+      console.error(loadError);
+      return [];
+    }
+    
+    const parsed = Papa.parse(fileContent, { header: true, dynamicTyping: true, skipEmptyLines: true });
+    
+    if (!parsed.data || parsed.data.length === 0) {
+      loadError = "CSV parsed but contains no data";
+      console.error(loadError);
+      return [];
+    }
+    
+    cachedData = parsed.data as CrimeRecord[];
+    loadError = null;
+    console.log(`Successfully loaded ${cachedData.length} crime records`);
+    return cachedData;
+  } catch (error) {
+    loadError = `Error reading crime data CSV: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(loadError);
+    return [];
+  }
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

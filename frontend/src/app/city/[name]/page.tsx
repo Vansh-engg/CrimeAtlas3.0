@@ -2,16 +2,23 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
-import { TrendingDown, MapPin, AlertTriangle, Search, Filter } from "lucide-react";
+import { TrendingDown, MapPin, AlertTriangle, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { CityTrendData } from "@/lib/data";
 
 export default function CityInsightsPage() {
   const pathname = usePathname();
   const router = useRouter();
-  const city = pathname.split('/').pop()?.toUpperCase() || "MUMBAI";
+  
+  // Extract city from pathname and normalize it
+  const rawCity = pathname.split('/').pop() || "mumbai";
+  const displayCity = rawCity.charAt(0).toUpperCase() + rawCity.slice(1).toLowerCase();
+  
   const [data, setData] = useState<CityTrendData[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [citiesLoaded, setCitiesLoaded] = useState(false);
   const [summary, setSummary] = useState({ 
     score: 42, 
     total: "3.2k", 
@@ -23,38 +30,117 @@ export default function CityInsightsPage() {
   const [years, setYears] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState(2024);
   const [selectedCrime, setSelectedCrime] = useState("Total");
+  const [retryCount, setRetryCount] = useState(0);
+
+  const handleRetry = () => {
+    setError(null);
+    setRetryCount(prev => prev + 1);
+  };
 
   useEffect(() => {
     async function loadControls() {
-       const { fetchAllCities, fetchAvailableYears } = await import('@/app/actions');
-       const [cityList, yearList] = await Promise.all([fetchAllCities(), fetchAvailableYears()]);
-       setCities(cityList);
-       setYears(yearList);
-       if (yearList.length > 0) setSelectedYear(yearList[0]);
+       try {
+         const { fetchAllCities, fetchAvailableYears } = await import('@/app/actions');
+         
+         const [cityList, yearList] = await Promise.all([
+           fetchAllCities().catch(err => {
+             console.error("Failed to fetch cities:", err);
+             return [];
+           }),
+           fetchAvailableYears().catch(err => {
+             console.error("Failed to fetch years:", err);
+             return [2024];
+           })
+         ]);
+         
+         if (!cityList || cityList.length === 0) {
+           console.warn("No cities returned from database");
+           setError("Unable to load city list. Please refresh the page.");
+           setCitiesLoaded(true);
+           setIsLoading(false);
+           return;
+         }
+
+         // Check if current city exists in the list (case-insensitive)
+         const cityExists = cityList.some(c => c.toLowerCase() === displayCity.toLowerCase());
+         if (!cityExists) {
+           console.warn(`City "${displayCity}" not found. Available cities:`, cityList);
+           // Redirect to the first available city
+           router.push(`/city/${cityList[0].toLowerCase()}`);
+           return;
+         }
+
+         setCities(cityList);
+         setYears(yearList || [2024]);
+         if (yearList && yearList.length > 0) setSelectedYear(yearList[0]);
+         setCitiesLoaded(true);
+         setError(null);
+       } catch (err) {
+         console.error("Failed to load controls:", err);
+         setError("Failed to load controls. Please try again or go back.");
+         setCitiesLoaded(true);
+         setIsLoading(false);
+       }
     }
     loadControls();
-  }, []);
+  }, [displayCity, router, retryCount]);
 
   useEffect(() => {
     async function loadData() {
-      const { fetchCityData, fetchSafetyData } = await import('@/app/actions');
-      const stats = await fetchCityData(city, selectedYear, selectedCrime);
-      const safety = await fetchSafetyData(city, selectedYear);
+      // Only load data if cities are already loaded and page is in proper state
+      if (!citiesLoaded || !displayCity) {
+        return;
+      }
       
-      setData(stats);
-      if (safety) {
-        setSummary({
-          score: safety.score,
-          total: stats.reduce((acc: number, curr: CityTrendData) => acc + curr.crimes, 0).toLocaleString(),
-          crimes: safety.crimes,
-          lat: safety.lat,
-          lng: safety.lng,
-          nodeId: `NOD-${Math.floor(Math.random()*900+100)}`
+      setIsLoading(true);
+      setError(null);
+      try {
+        const { fetchCityData, fetchSafetyData } = await import('@/app/actions');
+        
+        // Fetch with error boundaries
+        const statsResult = await fetchCityData(displayCity, selectedYear, selectedCrime).catch(err => {
+          console.error("Failed to fetch city data:", err);
+          return [];
         });
+
+        const safetyResult = await fetchSafetyData(displayCity, selectedYear).catch(err => {
+          console.error("Failed to fetch safety data:", err);
+          return null;
+        });
+        
+        if (!statsResult || statsResult.length === 0) {
+          setData([]);
+          setError(`No crime data available for ${displayCity} in ${selectedYear}. Try selecting another year.`);
+          // Still set default summary even if no data
+          setSummary(prev => ({
+            ...prev,
+            nodeId: `NOD-${Math.floor(Math.random()*900+100)}`
+          }));
+        } else {
+          setData(statsResult);
+          setError(null);
+          
+          if (safetyResult) {
+            setSummary({
+              score: safetyResult.score,
+              total: statsResult.reduce((acc: number, curr: CityTrendData) => acc + curr.crimes, 0).toLocaleString(),
+              crimes: safetyResult.crimes,
+              lat: safetyResult.lat,
+              lng: safetyResult.lng,
+              nodeId: `NOD-${Math.floor(Math.random()*900+100)}`
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error loading city data:", err);
+        setError(`Failed to load data: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setData([]);
+      } finally {
+        setIsLoading(false);
       }
     }
     loadData();
-  }, [city, selectedYear, selectedCrime]);
+  }, [displayCity, selectedYear, selectedCrime, citiesLoaded]);
 
   const handleCityChange = (newCity: string) => {
     router.push(`/city/${newCity.toLowerCase()}`);
@@ -63,7 +149,38 @@ export default function CityInsightsPage() {
   return (
     <div className="pt-24 pb-16 w-full max-w-7xl mx-auto space-y-12 animate-in slide-in-from-bottom-8 duration-700">
       
-      {/* Header Profile */}
+      {isLoading && (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto"></div>
+            <p className="text-white/60 font-medium">Loading city insights...</p>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/50 rounded-2xl p-6 text-red-400 space-y-4">
+          <p className="font-medium">{error}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={handleRetry}
+              className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg text-sm font-medium transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm font-medium text-white/60 transition-colors"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {!isLoading && !error && (
+      <>
+      
       <div className="glass-panel p-8 md:p-12 rounded-[2.5rem] relative overflow-hidden flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
         <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 blur-[100px] rounded-full" />
         
@@ -72,13 +189,18 @@ export default function CityInsightsPage() {
             <span className="bg-red-500/10 text-red-500 px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest border border-red-500/20 whitespace-nowrap">High Risk Zone</span>
             <div className="relative group w-full sm:w-auto">
               <select 
-                value={city.charAt(0) + city.slice(1).toLowerCase()}
+                value={displayCity}
                 onChange={(e) => handleCityChange(e.target.value)}
                 className="bg-white/5 border border-white/10 rounded-2xl pl-12 pr-10 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-red-500/30 text-white appearance-none cursor-pointer w-full sm:w-64 hover:bg-white/10 transition-all font-semibold"
+                disabled={!citiesLoaded || cities.length === 0}
               >
-                {cities.map(c => (
-                  <option key={c} value={c} className="bg-neutral-900 text-white">{c}</option>
-                ))}
+                {cities.length > 0 ? (
+                  cities.map(c => (
+                    <option key={c} value={c} className="bg-neutral-900 text-white">{c}</option>
+                  ))
+                ) : (
+                  <option className="bg-neutral-900 text-white">Loading cities...</option>
+                )}
               </select>
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-red-500/60" />
             </div>
@@ -96,7 +218,7 @@ export default function CityInsightsPage() {
               <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-red-500/60" />
             </div>
           </div>
-          <h1 className="text-6xl md:text-8xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-white/30">{city}</h1>
+          <h1 className="text-6xl md:text-8xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-white/30">{displayCity}</h1>
           <p className="text-white/50 text-2xl font-light mt-3">Comprehensive safety and zone analysis.</p>
         </div>
 
@@ -194,7 +316,7 @@ export default function CityInsightsPage() {
               <MapPin className="text-red-500" /> Spatial Intelligence
             </h3>
             <p className="text-white/40 max-w-md">
-              Targeted monitoring active for the {city} sector. Cross-referencing real-time incident reports with historical density patterns.
+              Targeted monitoring active for the {displayCity} sector. Cross-referencing real-time incident reports with historical density patterns.
             </p>
             <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-4">
               <span className="px-3 py-1 bg-white/5 rounded-full text-xs text-white/60 border border-white/10 uppercase tracking-widest font-mono">Lat: {summary.lat.toFixed(2)}° N</span>
@@ -209,12 +331,13 @@ export default function CityInsightsPage() {
                 <div className="w-4 h-4 bg-red-600 rounded-full relative z-10 shadow-[0_0_15px_#dc2626]" />
              </div>
              <div className="absolute bottom-4 right-4 text-[10px] text-white/20 font-mono tracking-tighter uppercase">
-               Active Monitoring Node: {city.slice(0,3)}-{summary.nodeId}
+               Active Monitoring Node: {displayCity.slice(0,3)}-{summary.nodeId}
              </div>
           </div>
         </div>
       </div>
-
+      </>
+      )}
     </div>
   );
 }

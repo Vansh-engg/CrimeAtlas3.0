@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { X, Camera, MapPin, Loader2, AlertTriangle, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MapMarker } from "@/lib/data";
@@ -22,14 +22,7 @@ export default function IncidentReportingModal({ isOpen, onClose, onSubmit }: In
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-fetch location on open
-  useEffect(() => {
-    if (isOpen && !location) {
-      handleGetLocation();
-    }
-  }, [isOpen]);
-
-  const handleGetLocation = () => {
+  const handleGetLocation = useCallback(() => {
     setIsFetchingLocation(true);
     setLocationError("");
     
@@ -47,13 +40,13 @@ export default function IncidentReportingModal({ isOpen, onClose, onSubmit }: In
         });
         setIsFetchingLocation(false);
       },
-      (err) => {
+      () => {
         setLocationError("Failed to pinpoint location.");
         setIsFetchingLocation(false);
       },
       { enableHighAccuracy: true }
     );
-  };
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
