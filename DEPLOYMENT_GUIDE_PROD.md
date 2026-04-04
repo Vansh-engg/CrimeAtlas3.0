@@ -15,8 +15,8 @@ Render will host your machine learning models and prediction engine.
     *   **Name**: `crime-atlas-api`
     *   **Region**: Select the one closest to you.
     *   **Environment**: `Python 3`
-    *   **Build Command**: `pip install -r api/requirements.txt`
-    *   **Start Command**: `gunicorn --chdir api app:app`
+    *   **Build Command**: `pip install -r backend/requirements.txt`
+    *   **Start Command**: `cd backend && gunicorn -w 1 -b 0.0.0.0:$PORT app:app`
 5.  **Advanced settings**:
     *   No specific environment variables are required unless you've added local secrets.
 6.  Click **Create Web Service**.
@@ -57,5 +57,5 @@ Once both services are live:
 
 ## 💡 Pro-Tips for Production
 - **Cold Boot**: If you are using Render's *Free Tier*, the API will "sleep" after 15 minutes of inactivity. The first prediction after a break might take up to 30 seconds to load while the server spins up.
-- **CORS**: The `api/app.py` currently has `CORS(app)` which allows all origins. This is fine for initial deployment, but you can restrict it to your Vercel URL later for better security.
+- **CORS**: The `backend/app.py` currently has `CORS(app)` which allows all origins. This is fine for initial deployment, but you can restrict it to your Vercel URL later for better security.
 - **Data Updates**: Since the app uses a CSV file in the `Data/` folder, simply update the CSV in GitHub and both services will pick up the new data on their next redeploy.

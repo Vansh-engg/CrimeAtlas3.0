@@ -13,8 +13,7 @@ on:
     branches:
       - main
     paths:
-      - 'api/**'
-      - 'Data/**'
+      - 'backend/**'
       - '.github/workflows/cd-pipeline.yml'
 
 jobs:
@@ -22,29 +21,29 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r api/requirements.txt
+        pip install -r backend/requirements.txt
     
     - name: Lint with flake8
       run: |
         pip install flake8
-        flake8 api/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics
       continue-on-error: true
     
     - name: Verify dataset
       run: |
         python -c "
         import pandas as pd
-        df = pd.read_csv('Data/india_city_crime_dataset_2015_2024_synthetic.csv')
+        df = pd.read_csv('backend/Data/india_city_crime_dataset_2015_2024_synthetic.csv')
         print(f'Dataset shape: {df.shape}')
         print(f'Columns: {df.columns.tolist()}')
         print(f'Date range: {df[\"year\"].min()} - {df[\"year\"].max()}')
@@ -56,41 +55,41 @@ jobs:
     timeout-minutes: 60
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r api/requirements.txt
+        pip install -r backend/requirements.txt
     
     - name: Train models
       run: |
-        cd api
+        cd backend
         python -c "
         from training_scheduler import ModelTrainingScheduler
         import os
         
-        data_path = os.path.join('..', 'Data', 'india_city_crime_dataset_2015_2024_synthetic.csv')
-        scheduler = ModelTrainingScheduler(data_path, models_dir='models')
+        data_path = os.path.join('Data', 'india_city_crime_dataset_2015_2024_synthetic.csv')
+        scheduler = ModelTrainingScheduler(data_path, models_dir='mlops_models')
         result = scheduler.train_models()
         
         if result['status'] != 'success':
-          exit(1)
+          raise SystemExit(1)
         print(f'Training completed: {result}')
         "
     
     - name: Run model health check
       run: |
-        cd api
+        cd backend
         python -c "
         from model_manager import ModelManager
         
-        manager = ModelManager(base_dir='models')
+        manager = ModelManager(base_dir='mlops_models')
         health = manager.health_check()
         
         healthy_count = sum(1 for h in health.values() if h == 'healthy')
@@ -102,10 +101,10 @@ jobs:
     
     - name: Upload model artifacts
       if: success()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: trained-models
-        path: api/models/
+        path: backend/mlops_models/
         retention-days: 30
 
   deploy:
@@ -113,20 +112,20 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download model artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: trained-models
-        path: api/models/
+        path: backend/mlops_models/
     
     - name: Verify deployment readiness
       run: |
-        cd api
+        cd backend
         echo "Deployment verification:"
-        ls -la models/
-        cat models/model_registry.json || echo "Model registry will be created on first run"
+        ls -la mlops_models/
+        cat mlops_models/model_registry.json || echo "Model registry will be created on first run"
     
     - name: Deploy notification
       run: |
@@ -156,13 +155,13 @@ jobs:
         4. Monitor prediction accuracy
         
         ## Deployment Information
-        - Models Location: `api/models/current/`
-        - Registry: `api/models/model_registry.json`
+        - Models Location: `backend/mlops_models/current/`
+        - Registry: `backend/mlops_models/model_registry.json`
         - Version: Check registry file
         EOF
     
     - name: Upload deployment summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: deployment-summary
         path: DEPLOYMENT_SUMMARY.md

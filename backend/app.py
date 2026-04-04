@@ -268,6 +268,9 @@ except Exception as e:
 # Run Server
 # --------------------------------------------------
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    debug_mode = os.environ.get("FLASK_ENV") != "production"
+
     logger.info("\n" + "="*50)
     logger.info("CrimeAtlas API Server Starting")
     logger.info("="*50)
@@ -281,7 +284,7 @@ if __name__ == "__main__":
         logger.info("  - Model status: GET /api/models/status")
         logger.info("  - Model history: GET /api/models/history")
     logger.info("="*50)
-    logger.info("Server running on http://0.0.0.0:5000")
+    logger.info(f"Server running on http://0.0.0.0:{port}")
     logger.info("="*50 + "\n")
     
-    app.run(port=5000, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)
